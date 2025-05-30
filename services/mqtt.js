@@ -32,8 +32,8 @@ class MqttService {
             clientId: `server-${Math.random().toString(16).substr(2, 8)}`,
             reconnectPeriod: this.reconnectDelay,
             connectTimeout: 10000, // 10 seconds
-            username: process.env.MQTT_USERNAME,
-            password: process.env.MQTT_PASSWORD
+            //username: process.env.MQTT_USERNAME,
+            //password: process.env.MQTT_PASSWORD
         };
 
         this.client = mqtt.connect(MQTT_BROKER, options);
