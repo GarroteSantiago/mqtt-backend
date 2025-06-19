@@ -3,6 +3,7 @@ const mqtt = require('mqtt');
 const db = require('../models');
 const Borrower = require("../models").Borrower;
 const Loan = require("../models").Loan;
+const Book = require("../models").Book;
 const Invoice = require("../models").Invoice;
 
 class Request {
@@ -98,6 +99,10 @@ class MqttService {
                 const request = JSON.parse(payload.toString(), );
                 console.log(`Received MQTT message on ${topic}:`, request);
                 this.publishStatusResponse(request);
+            } else if (topic.startsWith('esp32/loan/request')) {
+                const request = JSON.parse(payload.toString(), );
+                console.log(`Received MQTT message on ${topic}:`, request);
+                this.publishLoanResponse(request);
             }
         } catch (err) {
             console.error('Error processing MQTT message:', err);
@@ -144,7 +149,6 @@ class MqttService {
 
         let payload={}
         const loansByUser = await Loan.findAll({where: {borrower_id: request.user_id}});
-
         if (loansByUser.length >= 3) {
             payload = JSON.stringify({
                 auth: null,
@@ -158,6 +162,56 @@ class MqttService {
         }
 
         const topic = `esp32/status/response/${request.client_id}`;
+        const options = {}
+
+        this.client.publish(topic, payload, options, (err) => {
+            if (err) {
+                console.error(`Failed to publish to ${topic}:`, err);
+            } else {
+                console.log(`Published to ${topic}:`, payload);
+            }
+        });
+    }
+    async publishLoanResponse(request) {
+        if (!this.client || !this.client.connected) {
+            console.error('MQTT Client not connected');
+            return false;
+        }
+
+        let payload={}
+        const book = await Book.findByPk(request.book_code, {});
+        if (book === null) {
+            payload = JSON.stringify({
+                auth: null,
+                status: null,
+                loan: false,
+            })
+        } else {
+            const existingLoan = await Loan.findOne({where: {book_id:book.id}})
+            if (existingLoan !== null) {
+                payload = JSON.stringify({
+                    auth: null,
+                    status: null,
+                    loan: false,
+                })
+            } else {
+                try{
+                    const loan = await Loan.create({
+                        borrower_id: request.user_id,
+                        book_id: book.id,
+                    });
+                    payload = JSON.stringify({
+                        auth: null,
+                        status: null,
+                        loan: true,
+                    })
+                } catch (Error) {
+
+                }
+            }
+        }
+
+        const topic = `esp32/loan/response/${request.client_id}`;
         const options = {}
 
         this.client.publish(topic, payload, options, (err) => {
