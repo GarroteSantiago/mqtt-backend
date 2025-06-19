@@ -10,10 +10,7 @@ const { createCanvas, loadImage } = require('canvas');
 const fs = require('fs');
 const Jimp = require('jimp');
 
-
-
 const reader = new BrowserQRCodeReader();
-
 
 class Request {
     constructor(client_id, user_id) {
@@ -36,6 +33,10 @@ class MqttService {
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
         this.reconnectDelay = 5000; // 5 seconds
+
+        // For accumulating image chunks by client_id
+        this.imageChunksMap = new Map();   // Map<client_id, Map<partIndex, base64Chunk>>
+        this.expectedPartsMap = new Map(); // Map<client_id, totalParts>
     }
 
     async connect(MQTT_TOPICS) {
@@ -98,8 +99,8 @@ class MqttService {
 
     handleMessage(topic, message) {
         try {
-            const payload = message.toString();
-            const request = JSON.parse(payload.toString(), );
+            const payloadStr = message.toString();
+            const request = JSON.parse(payloadStr);
             console.log(`Received MQTT message on ${topic}:`, request);
 
             if (topic.startsWith('esp32/auth/request')) {
@@ -109,7 +110,66 @@ class MqttService {
             } else if (topic.startsWith('esp32/loan/request')) {
                 this.publishLoanResponse(request);
             } else if (topic.startsWith('esp32/image/request')) {
-                this.publishImageResponse(request);
+                const client_id = request.client_id;
+                if (!client_id) {
+                    console.warn('Imagen sin client_id');
+                    return;
+                }
+
+                // Initialize buffers if missing
+                if (!this.imageChunksMap.has(client_id)) {
+                    this.imageChunksMap.set(client_id, new Map());
+                }
+
+                if (topic.endsWith('/part')) {
+                    const part = request.part;
+                    const total_parts = request.total_parts;
+                    const image_chunk = request.image_chunk;
+
+                    if (typeof part !== 'number' || typeof total_parts !== 'number' || !image_chunk) {
+                        console.warn('Chunk de imagen inválido');
+                        return;
+                    }
+
+                    // Save chunk
+                    const chunks = this.imageChunksMap.get(client_id);
+                    chunks.set(part, image_chunk);
+                    this.expectedPartsMap.set(client_id, total_parts);
+
+                    console.log(`Recibido chunk ${part + 1} de ${total_parts} para cliente ${client_id}`);
+
+                    // If received all chunks, reconstruct and process
+                    if (chunks.size === total_parts) {
+                        console.log(`Todos los chunks recibidos para cliente ${client_id}, reconstruyendo imagen...`);
+
+                        let fullBase64 = '';
+                        for (let i = 0; i < total_parts; i++) {
+                            const chunkBase64 = chunks.get(i);
+                            if (!chunkBase64) {
+                                console.error(`Falta el chunk ${i} para cliente ${client_id}`);
+                                return;
+                            }
+                            fullBase64 += chunkBase64;
+                        }
+
+                        // Prepare full request for processing
+                        const fullRequest = {
+                            client_id: client_id,
+                            image: fullBase64
+                        };
+
+                        // Clear buffers before processing next image
+                        this.imageChunksMap.delete(client_id);
+                        this.expectedPartsMap.delete(client_id);
+
+                        this.publishImageResponse(fullRequest).catch(err => {
+                            console.error(`Error procesando imagen para cliente ${client_id}:`, err);
+                        });
+                    }
+                } else if (topic.endsWith('/final')) {
+                    console.log(`Mensaje final recibido para cliente ${client_id}`);
+                    // Optional additional logic if needed
+                }
             }
         } catch (err) {
             console.error('Error processing MQTT message:', err);
@@ -148,6 +208,7 @@ class MqttService {
             }
         });
     }
+
     async publishStatusResponse(request) {
         if (!this.client || !this.client.connected) {
             console.error('MQTT Client not connected');
@@ -179,6 +240,7 @@ class MqttService {
             }
         });
     }
+
     async publishLoanResponse(request) {
         if (!this.client || !this.client.connected) {
             console.error('MQTT Client not connected');
@@ -213,7 +275,11 @@ class MqttService {
                         loan: true,
                     })
                 } catch (Error) {
-
+                    payload = JSON.stringify({
+                        auth: null,
+                        status: null,
+                        loan: false,
+                    })
                 }
             }
         }
@@ -239,18 +305,19 @@ class MqttService {
         let code = null;
 
         try {
-            // Decodificar base64 a buffer
+            // Decode base64 to buffer
             const imageBuffer = Buffer.from(request.image, 'base64');
             fs.writeFileSync('debug_image.jpg', imageBuffer);
-            // Leer imagen con Jimp
+
+            // Load image with Jimp
             const jimpImage = await Jimp.read(imageBuffer);
 
-            // Obtener datos RGB
+            // Extract RGB data
             const width = jimpImage.bitmap.width;
             const height = jimpImage.bitmap.height;
             const bitmapData = jimpImage.bitmap.data;
 
-            // Crear arreglo de luminancia (blanco-negro)
+            // Create luminance array (grayscale)
             const luminanceData = new Uint8ClampedArray(width * height);
             for (let i = 0; i < width * height; i++) {
                 const r = bitmapData[i * 4];
@@ -259,7 +326,7 @@ class MqttService {
                 luminanceData[i] = Math.round((r + g + b) / 3);
             }
 
-            // Crear fuente luminancia ZXing
+            // ZXing luminance source
             const luminanceSource = new RGBLuminanceSource(luminanceData, width, height);
             const binaryBitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
 
@@ -267,7 +334,7 @@ class MqttService {
                 const result = reader.decode(binaryBitmap);
                 code = result.getText();
             } catch (decodeError) {
-                // No se detectó código
+                // No code detected
                 code = null;
             }
 
@@ -293,8 +360,6 @@ class MqttService {
 
         return !!code;
     }
-
-
 
     disconnect() {
         if (this.client) {

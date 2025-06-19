@@ -17,7 +17,7 @@ async function startServer() {
             await db.sequelize.sync({});
         }
 
-        const MQTT_TOPICS = ["esp32/auth/request", "esp32/status/request", "esp32/loan/request", "esp32/image/request"]
+        const MQTT_TOPICS = ["esp32/auth/request", "esp32/status/request", "esp32/loan/request", "esp32/image/request/parte", "esp32/image/request/fin"]
         // 3. Start MQTT service
         await mqttService.connect(MQTT_TOPICS);
         console.log('MQTT service started');
