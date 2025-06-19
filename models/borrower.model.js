@@ -36,7 +36,8 @@ module.exports = (sequelize, DataTypes) => {
     (
         {
             id: {
-                type: DataTypes.BIGINT,
+                type: DataTypes.CHAR(8),
+                allowNull: false,
                 primaryKey: true,
             },
             name: {
