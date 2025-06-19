@@ -5,6 +5,15 @@ const Borrower = require("../models").Borrower;
 const Loan = require("../models").Loan;
 const Book = require("../models").Book;
 const Invoice = require("../models").Invoice;
+const { BrowserQRCodeReader, BinaryBitmap, HybridBinarizer, RGBLuminanceSource} = require('@zxing/library');
+const { createCanvas, loadImage } = require('canvas');
+const fs = require('fs');
+const Jimp = require('jimp');
+
+
+
+const reader = new BrowserQRCodeReader();
+
 
 class Request {
     constructor(client_id, user_id) {
@@ -90,19 +99,17 @@ class MqttService {
     handleMessage(topic, message) {
         try {
             const payload = message.toString();
+            const request = JSON.parse(payload.toString(), );
+            console.log(`Received MQTT message on ${topic}:`, request);
 
             if (topic.startsWith('esp32/auth/request')) {
-                const request = JSON.parse(payload.toString(), );
-                console.log(`Received MQTT message on ${topic}:`, request);
                 this.publishAuthResponse(request);
             } else if (topic.startsWith('esp32/status/request')) {
-                const request = JSON.parse(payload.toString(), );
-                console.log(`Received MQTT message on ${topic}:`, request);
                 this.publishStatusResponse(request);
             } else if (topic.startsWith('esp32/loan/request')) {
-                const request = JSON.parse(payload.toString(), );
-                console.log(`Received MQTT message on ${topic}:`, request);
                 this.publishLoanResponse(request);
+            } else if (topic.startsWith('esp32/image/request')) {
+                this.publishImageResponse(request);
             }
         } catch (err) {
             console.error('Error processing MQTT message:', err);
@@ -222,6 +229,71 @@ class MqttService {
             }
         });
     }
+
+    async publishImageResponse(request) {
+        if (!this.client || !this.client.connected) {
+            console.error('MQTT Client not connected');
+            return false;
+        }
+
+        let code = null;
+
+        try {
+            // Decodificar base64 a buffer
+            const imageBuffer = Buffer.from(request.image, 'base64');
+            fs.writeFileSync('debug_image.jpg', imageBuffer);
+            // Leer imagen con Jimp
+            const jimpImage = await Jimp.read(imageBuffer);
+
+            // Obtener datos RGB
+            const width = jimpImage.bitmap.width;
+            const height = jimpImage.bitmap.height;
+            const bitmapData = jimpImage.bitmap.data;
+
+            // Crear arreglo de luminancia (blanco-negro)
+            const luminanceData = new Uint8ClampedArray(width * height);
+            for (let i = 0; i < width * height; i++) {
+                const r = bitmapData[i * 4];
+                const g = bitmapData[i * 4 + 1];
+                const b = bitmapData[i * 4 + 2];
+                luminanceData[i] = Math.round((r + g + b) / 3);
+            }
+
+            // Crear fuente luminancia ZXing
+            const luminanceSource = new RGBLuminanceSource(luminanceData, width, height);
+            const binaryBitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
+
+            try {
+                const result = reader.decode(binaryBitmap);
+                code = result.getText();
+            } catch (decodeError) {
+                // No se detectó código
+                code = null;
+            }
+
+        } catch (err) {
+            console.warn('No se detectó código:', err.message);
+        }
+
+        const payload = JSON.stringify({
+            image: !!code,
+            code: code
+        });
+
+        const topic = `esp32/loan/response/${request.client_id}`;
+        const options = {};
+
+        this.client.publish(topic, payload, options, (err) => {
+            if (err) {
+                console.error(`Failed to publish to ${topic}:`, err);
+            } else {
+                console.log(`Published to ${topic}:`, payload);
+            }
+        });
+
+        return !!code;
+    }
+
 
 
     disconnect() {
