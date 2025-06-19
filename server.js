@@ -11,7 +11,7 @@ async function startServer() {
 
         // 2. Sync models (only alter in development)
         if (process.env.NODE_ENV === 'development') {
-            await db.sequelize.sync({ alter: true, force: true });
+            await db.sequelize.sync({});
             console.log('Database models synchronized');
         } else{
             await db.sequelize.sync({});

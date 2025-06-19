@@ -2,6 +2,8 @@
 const mqtt = require('mqtt');
 const db = require('../models');
 const Borrower = require("../models").Borrower;
+const Loan = require("../models").Loan;
+const Invoice = require("../models").Invoice;
 
 class Request {
     constructor(client_id, user_id) {
@@ -134,17 +136,28 @@ class MqttService {
             }
         });
     }
-    publishStatusResponse(request) {
+    async publishStatusResponse(request) {
         if (!this.client || !this.client.connected) {
             console.error('MQTT Client not connected');
             return false;
         }
 
+        let payload={}
+        const loansByUser = await Loan.findAll({where: {borrower_id: request.user_id}});
+
+        if (loansByUser.length >= 3) {
+            payload = JSON.stringify({
+                auth: null,
+                status: false,
+            })
+        } else {
+            payload = JSON.stringify({
+                auth: null,
+                status: true,
+            })
+        }
+
         const topic = `esp32/status/response/${request.client_id}`;
-        const payload = JSON.stringify({
-            auth: null,
-            status: false,
-        })
         const options = {}
 
         this.client.publish(topic, payload, options, (err) => {
