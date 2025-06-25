@@ -33,10 +33,6 @@ class MqttService {
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
         this.reconnectDelay = 5000; // 5 seconds
-
-        // For accumulating image chunks by client_id
-        this.imageChunksMap = new Map();   // Map<client_id, Map<partIndex, base64Chunk>>
-        this.expectedPartsMap = new Map(); // Map<client_id, totalParts>
     }
 
     async connect(MQTT_TOPICS) {
@@ -46,8 +42,8 @@ class MqttService {
             clientId: `server-${Math.random().toString(16).substr(2, 8)}`,
             reconnectPeriod: this.reconnectDelay,
             connectTimeout: 10000, // 10 seconds
-            //username: process.env.MQTT_USERNAME,
-            //password: process.env.MQTT_PASSWORD
+            username: process.env.MQTT_USERNAME,
+            password: process.env.MQTT_PASSWORD
         };
 
         this.client = mqtt.connect(MQTT_BROKER, options);
