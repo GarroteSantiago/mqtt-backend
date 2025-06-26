@@ -9,6 +9,7 @@ const { BrowserQRCodeReader, BinaryBitmap, HybridBinarizer, RGBLuminanceSource} 
 const { createCanvas, loadImage } = require('canvas');
 const fs = require('fs');
 const Jimp = require('jimp');
+const {DATE} = require("sequelize");
 
 const reader = new BrowserQRCodeReader();
 
@@ -191,11 +192,36 @@ class MqttService {
         } else {
             const existingLoan = await Loan.findOne({where: {book_id:book.id}})
             if (existingLoan !== null) {
-                payload = JSON.stringify({
-                    auth: null,
-                    status: null,
-                    loan: false,
-                })
+                if (existingLoan.borrower_id === request.user_id) {
+                    try {
+                        await Invoice.create({
+                            borrower_id: request.user_id,
+                            book_id: book.id,
+                            retrieval_date: existingLoan.retrieval_date,
+                            devolution_expected_date: existingLoan.devolution_expected_date,
+                            devolution_date: new Date(),
+                        })
+                        await existingLoan.destroy();
+
+                        payload = JSON.stringify({
+                            auth: null,
+                            status: null,
+                            loan: true,
+                        })
+                    } catch (e) {
+                        payload = JSON.stringify({
+                            auth: null,
+                            status: null,
+                            loan: false,
+                        })
+                    }
+                } else {
+                    payload = JSON.stringify({
+                        auth: null,
+                        status: null,
+                        loan: false,
+                    })
+                }
             } else {
                 try{
                     const loan = await Loan.create({
