@@ -34,7 +34,7 @@ module.exports = (sequelize, DataTypes) => {
                 }
             },
             book_id: {
-                type: DataTypes.BIGINT,
+                type: DataTypes.STRING,
                 allowNull: false,
                 references: {
                     model: 'books',
