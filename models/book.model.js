@@ -33,7 +33,6 @@ module.exports = (sequelize, DataTypes) => {
             id: {
                 type: DataTypes.STRING,
                 primaryKey: true,
-                autoIncrement: true
             },
             author: {
                 type: DataTypes.STRING,
