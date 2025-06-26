@@ -31,9 +31,14 @@ module.exports = (sequelize, DataTypes) => {
     (
         {
             id: {
-                type: DataTypes.BIGINT,
+                type: DataTypes.STRING,
                 primaryKey: true,
                 autoIncrement: true
+            },
+            author: {
+                type: DataTypes.STRING,
+                allowNull: false,
+                unique: false
             },
             name: {
                 type: DataTypes.STRING,
