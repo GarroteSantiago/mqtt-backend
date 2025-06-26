@@ -151,19 +151,10 @@ class MqttService {
         }
 
         let payload={}
-        const loansByUser = await Loan.findAll({where: {borrower_id: request.user_id}});
-        if (loansByUser.length >= 3) {
-            payload = JSON.stringify({
-                auth: null,
-                status: false,
-            })
-        } else {
-            payload = JSON.stringify({
-                auth: null,
-                status: true,
-            })
-        }
-
+        payload = JSON.stringify({
+            auth: null,
+            status: true,
+        })
         const topic = `esp32/status/response/${request.client_id}`;
         const options = {}
 
@@ -224,15 +215,23 @@ class MqttService {
                 }
             } else {
                 try{
-                    const loan = await Loan.create({
-                        borrower_id: request.user_id,
-                        book_id: book.id,
-                    });
-                    payload = JSON.stringify({
-                        auth: null,
-                        status: null,
-                        loan: true,
-                    })
+                    const loansByUser = await Loan.findAll({where: {borrower_id: request.user_id}});
+                    if (loansByUser.length >= 3) {
+                        payload = JSON.stringify({
+                            auth: null,
+                            loan: false,
+                        })
+                    } else {
+                        await Loan.create({
+                            borrower_id: request.user_id,
+                            book_id: book.id,
+                        });
+                        payload = JSON.stringify({
+                            auth: null,
+                            status: null,
+                            loan: true,
+                        })
+                    }
                 } catch (Error) {
                     payload = JSON.stringify({
                         auth: null,
