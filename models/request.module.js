@@ -28,6 +28,7 @@ module.exports = (sequelize, DataTypes) => {
             borrower_id: {
                 type: DataTypes.CHAR(8),
                 allowNull: false,
+                unique: true,
                 references: {
                     model: 'borrowers',
                     key: 'id'
