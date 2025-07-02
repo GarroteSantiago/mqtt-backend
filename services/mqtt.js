@@ -4,6 +4,7 @@ const db = require('../models');
 const Borrower = require("../models").Borrower;
 const Loan = require("../models").Loan;
 const Book = require("../models").Book;
+const ActiveRequest = require("../models").Request;
 const Invoice = require("../models").Invoice;
 const { BrowserQRCodeReader, BinaryBitmap, HybridBinarizer, RGBLuminanceSource} = require('@zxing/library');
 const { createCanvas, loadImage } = require('canvas');
@@ -11,29 +12,13 @@ const fs = require('fs');
 const Jimp = require('jimp');
 const {DATE} = require("sequelize");
 
-const reader = new BrowserQRCodeReader();
-
-class Request {
-    constructor(client_id, user_id) {
-        this.client_id = client_id;
-        this.user_id = user_id;
-    }
-}
-
-class Response {
-    constructor(auth, status) {
-        this.auth = auth;
-        this.status = status;
-    }
-}
-
 class MqttService {
 
     constructor() {
         this.client = null;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
-        this.reconnectDelay = 5000; // 5 seconds
+        this.reconnectDelay = 5000;
     }
 
     async connect(MQTT_TOPICS) {
@@ -261,74 +246,27 @@ class MqttService {
             return false;
         }
 
-        let payload={}
-        const book = await Book.findByPk(request.book_code, {});
-        if (book === null) {
+        let payload={
+            auth: null,
+            status: null,
+            loan: false,
+        }
+
+        const loansByUser = await Loan.findAll({where: {borrower_id: request.user_id}});
+        if (loansByUser.length >= 3) {
             payload = JSON.stringify({
                 auth: null,
-                status: null,
                 loan: false,
             })
         } else {
-            const existingLoan = await Loan.findOne({where: {book_id:book.id}})
-            if (existingLoan !== null) {
-                if (existingLoan.borrower_id === request.user_id) {
-                    try {
-                        await Invoice.create({
-                            borrower_id: request.user_id,
-                            book_id: book.id,
-                            retrieval_date: existingLoan.retrieval_date,
-                            devolution_expected_date: existingLoan.devolution_expected_date,
-                            devolution_date: new Date(),
-                        })
-                        await existingLoan.destroy();
-
-                        payload = JSON.stringify({
-                            auth: null,
-                            status: null,
-                            loan: true,
-                        })
-                    } catch (e) {
-                        payload = JSON.stringify({
-                            auth: null,
-                            status: null,
-                            loan: false,
-                        })
-                    }
-                } else {
-                    payload = JSON.stringify({
-                        auth: null,
-                        status: null,
-                        loan: false,
-                    })
-                }
-            } else {
-                try{
-                    const loansByUser = await Loan.findAll({where: {borrower_id: request.user_id}});
-                    if (loansByUser.length >= 3) {
-                        payload = JSON.stringify({
-                            auth: null,
-                            loan: false,
-                        })
-                    } else {
-                        await Loan.create({
-                            borrower_id: request.user_id,
-                            book_id: book.id,
-                        });
-                        payload = JSON.stringify({
-                            auth: null,
-                            status: null,
-                            loan: true,
-                        })
-                    }
-                } catch (Error) {
-                    payload = JSON.stringify({
-                        auth: null,
-                        status: null,
-                        loan: false,
-                    })
-                }
-            }
+            await ActiveRequest.create({
+                borrower_id: request.user_id,
+            });
+            payload = JSON.stringify({
+                auth: null,
+                status: null,
+                loan: true,
+            })
         }
 
         const topic = `esp32/loan/response/${request.client_id}`;
