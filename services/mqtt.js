@@ -105,6 +105,8 @@ class MqttService {
             } else if (topic.startsWith('esp32/status/request')) {
                 this.publishStatusResponse(request);
             } else if (topic.startsWith('esp32/loan/make')) {
+                this.publishMakeLoanResponse(request);
+            } else if (topic.startsWith('esp32/loan/request')) {
                 this.publishLoanResponse(request);
             }
         } catch (err) {
@@ -156,6 +158,93 @@ class MqttService {
             status: true,
         })
         const topic = `esp32/status/response/${request.client_id}`;
+        const options = {}
+
+        this.client.publish(topic, payload, options, (err) => {
+            if (err) {
+                console.error(`Failed to publish to ${topic}:`, err);
+            } else {
+                console.log(`Published to ${topic}:`, payload);
+            }
+        });
+    }
+    async publishMakeLoanResponse(request) {
+        if (!this.client || !this.client.connected) {
+            console.error('MQTT Client not connected');
+            return false;
+        }
+
+        let payload={}
+        const book = await Book.findByPk(request.book_code, {});
+        if (book === null) {
+            payload = JSON.stringify({
+                auth: null,
+                status: null,
+                loan: false,
+            })
+        } else {
+            const existingLoan = await Loan.findOne({where: {book_id:book.id}})
+            if (existingLoan !== null) {
+                if (existingLoan.borrower_id === request.user_id) {
+                    try {
+                        await Invoice.create({
+                            borrower_id: request.user_id,
+                            book_id: book.id,
+                            retrieval_date: existingLoan.retrieval_date,
+                            devolution_expected_date: existingLoan.devolution_expected_date,
+                            devolution_date: new Date(),
+                        })
+                        await existingLoan.destroy();
+
+                        payload = JSON.stringify({
+                            auth: null,
+                            status: null,
+                            loan: true,
+                        })
+                    } catch (e) {
+                        payload = JSON.stringify({
+                            auth: null,
+                            status: null,
+                            loan: false,
+                        })
+                    }
+                } else {
+                    payload = JSON.stringify({
+                        auth: null,
+                        status: null,
+                        loan: false,
+                    })
+                }
+            } else {
+                try{
+                    const loansByUser = await Loan.findAll({where: {borrower_id: request.user_id}});
+                    if (loansByUser.length >= 3) {
+                        payload = JSON.stringify({
+                            auth: null,
+                            loan: false,
+                        })
+                    } else {
+                        await Loan.create({
+                            borrower_id: request.user_id,
+                            book_id: book.id,
+                        });
+                        payload = JSON.stringify({
+                            auth: null,
+                            status: null,
+                            loan: true,
+                        })
+                    }
+                } catch (Error) {
+                    payload = JSON.stringify({
+                        auth: null,
+                        status: null,
+                        loan: false,
+                    })
+                }
+            }
+        }
+
+        const topic = `esp32/loan/response/${request.client_id}`;
         const options = {}
 
         this.client.publish(topic, payload, options, (err) => {
