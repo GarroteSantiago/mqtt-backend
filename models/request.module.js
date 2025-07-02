@@ -40,7 +40,7 @@ module.exports = (sequelize, DataTypes) => {
             modelName: 'Request',
             tableName: 'requests',
             timestamps: true,
-            createdAt: 'devolution_date',
+            createdAt: 'created_at',
             updatedAt: false,
         }
     );
