@@ -140,13 +140,16 @@ class MqttService {
             auth: null,
             status: false,
         })
-
-        const loansByUser = await Loan.findAll({where: {borrower_id: request.user_id}});
-        if (loansByUser.length < 3) {
-            payload = JSON.stringify({
-                auth: null,
-                loan: true,
-            })
+        try {
+            const loansByUser = await Loan.findAll({where: {borrower_id: request.user_id}});
+            if (loansByUser.length < 3) {
+                payload = JSON.stringify({
+                    auth: null,
+                    status: true,
+                })
+            }
+        } catch (error) {
+            console.log(error);
         }
 
         const topic = `esp32/status/response/${request.client_id}`;
