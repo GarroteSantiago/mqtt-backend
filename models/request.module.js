@@ -17,8 +17,7 @@ module.exports = (sequelize, DataTypes) => {
         }
     }
 
-    Request.init
-    (
+    Request.init(
         {
             id: {
                 type: DataTypes.BIGINT,
@@ -28,10 +27,16 @@ module.exports = (sequelize, DataTypes) => {
             borrower_id: {
                 type: DataTypes.CHAR(8),
                 allowNull: false,
+                unique: true,
                 references: {
                     model: 'borrowers',
                     key: 'id'
                 }
+            },
+            created_at: {
+                type: DataTypes.DATE,
+                allowNull: false,
+                defaultValue: DataTypes.NOW
             }
         },
         {
@@ -39,10 +44,11 @@ module.exports = (sequelize, DataTypes) => {
             modelName: 'Request',
             tableName: 'requests',
             timestamps: true,
-            createdAt: 'devolution_date',
+            createdAt: 'created_at',
             updatedAt: false,
         }
     );
+
 
     return Request;
 }
