@@ -187,6 +187,7 @@ class MqttService {
                 loan: true,
             })
         } catch (e) {
+            console.error(`Failed to create request:`, e);
             payload = JSON.stringify({
                 auth: null,
                 status: null,
