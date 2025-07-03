@@ -180,6 +180,7 @@ class MqttService {
             await ActiveRequest.create({
                 borrower_id: request.user_id,
             });
+            console.log("Created request")
             payload = JSON.stringify({
                 auth: null,
                 status: null,
