@@ -26,7 +26,7 @@ module.exports = (sequelize, DataTypes) => {
     (
         {
             borrower_id: {
-                type: DataTypes.BIGINT,
+                type: DataTypes.CHAR(8),
                 allowNull: false,
                 references: {
                     model: 'borrowers',
@@ -34,7 +34,7 @@ module.exports = (sequelize, DataTypes) => {
                 }
             },
             book_id: {
-                type: DataTypes.BIGINT,
+                type: DataTypes.STRING,
                 allowNull: false,
                 references: {
                     model: 'books',

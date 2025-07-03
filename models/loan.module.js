@@ -13,20 +13,19 @@ module.exports = (sequelize, DataTypes) => {
                 foreignKey: 'borrower_id',
                 onDelete: 'RESTRICT',
                 onUpdate: 'RESTRICT',
-            })
+            });
             Loan.belongsTo(models.Book, {
                 foreignKey: 'book_id',
                 onDelete: 'RESTRICT',
                 onUpdate: 'RESTRICT',
-            })
+            });
         }
     }
 
-    Loan.init
-    (
+    Loan.init(
         {
             borrower_id: {
-                type: DataTypes.BIGINT,
+                type: DataTypes.CHAR(8),
                 allowNull: false,
                 references: {
                     model: 'borrowers',
@@ -34,20 +33,26 @@ module.exports = (sequelize, DataTypes) => {
                 }
             },
             book_id: {
-                type: DataTypes.BIGINT,
+                type: DataTypes.STRING,
                 allowNull: false,
                 references: {
                     model: 'books',
                     key: 'id'
                 }
             },
-            retrieval_date:{
+            retrieval_date: {
                 type: DataTypes.DATE,
                 allowNull: false,
+                defaultValue: Sequelize.NOW
             },
             devolution_expected_date: {
                 type: DataTypes.DATE,
                 allowNull: false,
+                defaultValue: () => {
+                    const date = new Date();
+                    date.setDate(date.getDate() + 7);
+                    return date;
+                }
             }
         },
         {
@@ -61,4 +66,4 @@ module.exports = (sequelize, DataTypes) => {
     );
 
     return Loan;
-}
+};
