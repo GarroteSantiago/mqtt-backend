@@ -176,6 +176,7 @@ class MqttService {
         }
 
         try {
+            console.log("Creating request")
             await ActiveRequest.create({
                 borrower_id: request.user_id,
             });
