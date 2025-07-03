@@ -41,7 +41,7 @@ module.exports = (sequelize, DataTypes) => {
                 unique: false
             },
             campus_id: {
-                type: DataTypes.STRING,
+                type: DataTypes.BIGINT,
                 allowNull: false,
                 references: {
                     model: 'campuses',
